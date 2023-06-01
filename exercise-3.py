@@ -1,5 +1,6 @@
 import numpy as np
 import csv
+from math import sqrt
 
 datafile = '/data/2023-DAT470-DIT065/open_pubs.csv'
 
@@ -44,7 +45,7 @@ def kdtree(dataset, depth):
         return BoxNode(None, dataset[0], None)
     else:
         # 0 is x-axis(easting) and 1 is y-axis(northing)
-        axis = 0 if depth %2 == 0 else 1
+        axis = depth % 2
         if axis == 0:
             dataset = np.sort(dataset, order='easting')
         elif axis == 1:
@@ -52,12 +53,86 @@ def kdtree(dataset, depth):
         else:
             raise ValueError(f'Axis needs to be 0 or 1, not {axis}')
         median_idx = len(dataset) // 2
-        median = dataset[median_idx]
+        median = dataset[median_idx][axis+1]
         left_child = kdtree(dataset[:median_idx], depth+1)
         right_child = kdtree(dataset[median_idx+1:], depth+1)
         return BoxNode(median, left_child, right_child)
-        
+
+def euclid_distance(p1, p2):
+    return sqrt(float((p1[0] - p2[0])**2) + float((p1[1] - p2[1])**2))
+
+
+def find_local(node, query, depth):
+    if not node.median:
+        # the node is a leaf
+        # find point (child) closest to query
+        shortest_dist = 9999999
+        closest_point = None
+        for child in [node.left_child, node.right_child]:
+            if child != None:
+                dist = euclid_distance(child.tolist()[1:], query)
+                if dist < shortest_dist:
+                    shortest_dist = dist
+                    closest_point = child
+        return closest_point
+    else:
+        axis = depth % 2
+        if query[axis] <= node.median:
+            return find_local(node.left_child, query, depth+1)
+        else:
+            return find_local(node.right_child, query, depth+1)
+
+def update_global(node, query, best_neighbor, best_distance, depth):
+    if not node.median:
+        for child in [node.left_child, node.right_child]:
+            if child != None:
+                dist = euclid_distance(child.tolist()[1:], query)
+                if dist < best_distance:
+                    best_neighbor = child
+                    best_distance = dist
+        return best_neighbor, best_distance
+    else:
+        axis = depth % 2
+        if query[axis] <= node.median:
+            best_neighbor, best_distance = update_global(\
+                node.left_child, query, best_neighbor, best_distance\
+                    , depth+1)
+            if query[axis]+best_distance > node.median:
+                best_neighbor, best_distance = update_global(\
+                    node.right_child, query, best_neighbor, best_distance\
+                        , depth+1)
+        else:
+            best_neighbor, best_distance = update_global(\
+                node.right_child, query, best_neighbor, best_distance\
+                    , depth+1)
+            if query[axis]-best_distance <= node.median:
+                best_neighbor, best_distance = update_global(\
+                    node.left_child, query, best_neighbor, best_distance\
+                        , depth+1)
+        return best_neighbor, best_distance
+
+def nearest_neighbor(root, query):
+    p = find_local(root, query, 0)
+    r = euclid_distance(p, query)
+    p, r = update_global(root, query, p, r, 0)
+    return p
+
 
 if __name__ == '__main__':
     pub_names, coordinates = read_pub_csv(datafile)
     
+    # should return Basildon something club
+    # query = (571686, 190376)
+    # Carriers Arms
+    query = (607463.0,235397.0)
+
+    root = kdtree(coordinates, 0)
+    
+    closest_pub = nearest_neighbor(root, query)
+    #print('closest pub point:', closest_pub, 'type:', type(closest_pub))
+    
+    print('Query:', query)
+    print("closest pub:", pub_names[closest_pub[0]])
+
+    result_coords = closest_pub.tolist()[1:]
+    print('distance:',euclid_distance(query, result_coords))
