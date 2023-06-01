@@ -7,4 +7,4 @@ Your task is to implement nearest neighbor search using a k-d tree. Use the simp
 
 Your implementation should be able to read in the data from the file given above, and return the name of the nearest pub to a location, given in Euclidean coordinates (that is, northing and easting).
 
-Return your solution as a file named exercise-3.py.
+Return your solution as a file named `exercise-3.py`.
